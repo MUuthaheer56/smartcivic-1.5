@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Worker Management - SmartCivic{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-top: 1rem;">
+  <h2 class="card-title"><i class="fa-solid fa-users" style="color: var(--primary);"></i> Municipal Worker Performance Panel</h2>
+  <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">Monitor worker assignment compliance ratios, average resolution speed intervals, and scorecard performance points calculated by background analytics.</p>
+
+  <div id="alert-container" style="margin-top: 1.5rem;"></div>
+
+  <div style="overflow-x: auto; margin-top: 1.5rem;">
+    <table style="width: 100%; border-collapse: collapse; text-align: left;" id="workers-table">
+      <thead>
+        <tr style="border-bottom: 2px solid var(--border-color); color: var(--text-muted); font-size: 0.9rem;">
+          <th style="padding: 0.75rem 1rem;">Name</th>
+          <th style="padding: 0.75rem 1rem;">Department</th>
+          <th style="padding: 0.75rem 1rem;">Ward Jurisdiction</th>
+          <th style="padding: 0.75rem 1rem;">Status</th>
+          <th style="padding: 0.75rem 1rem;">Compliance</th>
+          <th style="padding: 0.75rem 1rem;">Performance Score</th>
+        </tr>
+      </thead>
+      <tbody id="workers-list">
+        <tr>
+          <td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">
+            <i class="fa-solid fa-circle-notch fa-spin"></i> Loading worker records...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    loadWorkers();
+  });
+
+  function loadWorkers() {
+    const list = document.getElementById("workers-list");
+    // Fetch all workers and compile scorecard parameters
+    fetch("/api/admin/analytics/worker-performance")
+      .then(res => res.json())
+      .then(res => {
+        if (res.success) {
+          const perfData = res.data;
+          
+          fetch("/api/workers")
+            .then(res2 => res2.json())
+            .then(res2 => {
+              if (res2.success) {
+                const workers = res2.data;
+                if (workers.length === 0) {
+                  list.innerHTML = `<tr><td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">No workers registered.</td></tr>`;
+                  return;
+                }
+
+                let html = ``;
+                workers.forEach(w => {
+                  const p = perfData.find(x => x.worker_id === w._id) || {
+                    performance_score: w.performance ? w.performance.performance_score : 100,
+                    sla_compliance_pct: w.performance ? w.performance.sla_compliance_pct : 100
+                  };
+
+                  const statusColor = w.status === "AVAILABLE" ? 'var(--success)' : w.status === "BUSY" ? 'var(--warning)' : 'var(--text-muted)';
+                  
+                  html += `
+                    <tr style="border-bottom: 1px solid var(--border-color)">
+                      <td style="padding: 0.75rem 1rem; font-weight: 600;">${w.name}</td>
+                      <td style="padding: 0.75rem 1rem;">${w.department}</td>
+                      <td style="padding: 0.75rem 1rem;">${w.ward}</td>
+                      <td style="padding: 0.75rem 1rem;">
+                        <span style="font-weight: 600; color: ${statusColor}"><i class="fa-solid fa-circle" style="font-size: 0.65rem; margin-right: 0.25rem;"></i> ${w.status}</span>
+                      </td>
+                      <td style="padding: 0.75rem 1rem; font-weight: 600;">${p.sla_compliance_pct}%</td>
+                      <td style="padding: 0.75rem 1rem; font-weight: 700; color: var(--primary);">${p.performance_score}/100</td>
+                    </tr>
+                  `;
+                });
+                list.innerHTML = html;
+              }
+            });
+        }
+      });
+  }
+</script>
+{% endblock %}

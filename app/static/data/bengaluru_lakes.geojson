@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ulsoor Lake"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [77.618, 12.979],
+            [77.623, 12.979],
+            [77.623, 12.983],
+            [77.618, 12.983],
+            [77.618, 12.979]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sankey Tank"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [77.573, 13.004],
+            [77.578, 13.004],
+            [77.578, 13.009],
+            [77.573, 13.009],
+            [77.573, 13.004]
+          ]
+        ]
+      }
+    }
+  ]
+}

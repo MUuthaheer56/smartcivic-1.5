@@ -1,0 +1,6 @@
+{
+    "residential": {"day": 55, "night": 45},
+    "commercial":  {"day": 65, "night": 55},
+    "industrial":  {"day": 75, "night": 70},
+    "silence":     {"day": 50, "night": 40}
+}

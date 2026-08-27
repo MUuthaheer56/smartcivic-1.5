@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}AI Review Queue - SmartCivic{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-top: 1rem;">
+  <h2 class="card-title"><i class="fa-solid fa-list-check" style="color: var(--warning);"></i> Manual AI Review Queue</h2>
+  <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">Complaints flagged by the routing engine as ADMIN_REVIEW due to low detector confidence require manual verification before dispatch.</p>
+  
+  <div id="alert-container" style="margin-top: 1.5rem;"></div>
+
+  <div style="overflow-x: auto; margin-top: 1.5rem;">
+    <table style="width: 100%; border-collapse: collapse; text-align: left;" id="queue-table">
+      <thead>
+        <tr style="border-bottom: 2px solid var(--border-color); color: var(--text-muted); font-size: 0.9rem;">
+          <th style="padding: 0.75rem 1rem;">Complaint ID</th>
+          <th style="padding: 0.75rem 1rem;">Category</th>
+          <th style="padding: 0.75rem 1rem;">Description</th>
+          <th style="padding: 0.75rem 1rem;">AI Confidence</th>
+          <th style="padding: 0.75rem 1rem;">Civic Confidence</th>
+          <th style="padding: 0.75rem 1rem;">Action</th>
+        </tr>
+      </thead>
+      <tbody id="queue-list">
+        <tr>
+          <td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">
+            <i class="fa-solid fa-circle-notch fa-spin"></i> Loading pending queue items...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    loadReviewQueue();
+  });
+
+  function loadReviewQueue() {
+    const list = document.getElementById("queue-list");
+    fetch("/api/admin/queue")
+      .then(res => res.json())
+      .then(res => {
+        if (res.success) {
+          const items = res.data;
+          if (items.length === 0) {
+            list.innerHTML = `<tr><td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">No complaints currently awaiting review.</td></tr>`;
+            return;
+          }
+
+          let html = ``;
+          items.forEach(c => {
+            const aiConf = c.ai_confidence ? `${(c.ai_confidence * 100).toFixed(1)}%` : "N/A";
+            const civConf = c.civic_confidence ? `${(c.civic_confidence * 100).toFixed(1)}%` : "N/A";
+            
+            html += `
+              <tr style="border-bottom: 1px solid var(--border-color)">
+                <td style="padding: 0.75rem 1rem; font-family: monospace; font-size: 0.85rem;">${c._id}</td>
+                <td style="padding: 0.75rem 1rem; font-weight: 600;">${c.category}</td>
+                <td style="padding: 0.75rem 1rem; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.description}</td>
+                <td style="padding: 0.75rem 1rem; font-weight: 600;">${aiConf}</td>
+                <td style="padding: 0.75rem 1rem; font-weight: 600; color: var(--primary);">${civConf}</td>
+                <td style="padding: 0.75rem 1rem; display: flex; gap: 0.5rem;">
+                  <button class="btn btn-primary" onclick="resolveReview('${c._id}', 'VERIFIED')" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;"><i class="fa-solid fa-check"></i> Verify</button>
+                  <button class="btn btn-outline" onclick="resolveReview('${c._id}', 'REJECTED')" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: var(--danger); color: var(--danger);"><i class="fa-solid fa-trash-can"></i> Reject</button>
+                </td>
+              </tr>
+            `;
+          });
+          list.innerHTML = html;
+        }
+      });
+  }
+
+  function resolveReview(complaintId, resolutionStatus) {
+    const csrfToken = getCookie("csrf_access_token");
+    const alertContainer = document.getElementById("alert-container");
+
+    fetch(`/api/admin/complaints/${complaintId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken
+      },
+      body: JSON.stringify({ status: resolutionStatus })
+    })
+    .then(res => res.json())
+    .then(res => {
+      if (res.success) {
+        alertContainer.innerHTML = `<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Complaint successfully ${resolutionStatus.toLowerCase()}!</div>`;
+        loadReviewQueue();
+        setTimeout(() => alertContainer.innerHTML = "", 3000);
+      } else {
+        alertContainer.innerHTML = `<div class="alert alert-danger"><i class="fa-solid fa-circle-exclamation"></i> Error: ${res.error}</div>`;
+      }
+    });
+  }
+</script>
+{% endblock %}

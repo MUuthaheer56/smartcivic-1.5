@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}Report Issue - SmartCivic{% endblock %}
+
+{% block extra_head %}
+<style>
+  .preview-container {
+    display: none;
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 1rem;
+    border: 1px solid var(--border-color);
+  }
+  .preview-image {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .ai-overlay-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 400px; gap: 2rem; margin-top: 1rem;">
+  <!-- Left Side: Interactive Report Form -->
+  <div class="card">
+    <h2 class="card-title"><i class="fa-solid fa-triangle-exclamation" style="color: var(--primary);"></i> File a New Civic Complaint</h2>
+    <div id="alert-container" style="margin-top: 1rem;"></div>
+    
+    <form id="complaint-form" style="margin-top: 1.5rem;" enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="category">Category</label>
+        <select id="category" required>
+          <option value="Road Damage">Road Damage (Potholes, Cracks)</option>
+          <option value="Waste Management">Waste Management (Garbage, Dumps)</option>
+          <option value="Stray Animal">Stray Animal (Menaces, Roaming)</option>
+          <option value="Noise">Noise (CPCB decibel violations)</option>
+          <option value="Footpath">Footpath (Encroachments)</option>
+          <option value="Construction Hazard">Construction Hazard (Trenches)</option>
+          <option value="Streetlight">Streetlight (Outages)</option>
+          <option value="Drainage">Drainage (Clogs, Flooding)</option>
+          <option value="Lake Encroachment">Lake Encroachment</option>
+          <option value="Other">Other Issues</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="subcategory">Subcategory</label>
+        <input type="text" id="subcategory" placeholder="e.g. Open Pothole, Blocked Sidewalk" required>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Detailed Description (min 10 characters)</label>
+        <textarea id="description" rows="4" minlength="10" maxlength="500" required placeholder="Describe the issue in detail..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Pick Location on Map</label>
+        <div id="map" style="height: 300px;"></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div>
+            <label for="lat">Latitude</label>
+            <input type="text" id="lat" readonly required>
+          </div>
+          <div>
+            <label for="lng">Longitude</label>
+            <input type="text" id="lng" readonly required>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="address">Address / Landmark</label>
+        <input type="text" id="address" required placeholder="100 Feet Rd, Indiranagar">
+      </div>
+
+      <div class="form-group">
+        <label for="image">Upload Photo (Max 10MB)</label>
+        <input type="file" id="image" accept="image/*" required>
+        <div class="preview-container" id="image-preview-wrapper">
+          <img src="" alt="Upload Preview" class="preview-image" id="image-preview">
+          <canvas class="ai-overlay-canvas" id="ai-canvas"></canvas>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.8rem; margin-top: 1.5rem;">
+        Submit Report
+      </button>
+    </form>
+  </div>
+
+  <!-- Right Side: Real-time AI Analysis Feedback overlay -->
+  <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+    <!-- Quality Check Status -->
+    <div class="card" style="background: rgba(30,41,59,0.95);">
+      <h3 class="card-title"><i class="fa-solid fa-robot" style="color: var(--primary);"></i> AI Copilot Real-Time Analysis</h3>
+      <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;" id="ai-results-panel">
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Upload a photo to see real-time AI classification, quality parameters, and routing assignments.</p>
+        
+        <div id="ai-metrics" style="display: none; flex-direction: column; gap: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+            <span style="color: var(--text-muted); font-weight: 500;">Class Detected:</span>
+            <span id="ai-class" style="font-weight: 600; color: var(--primary);">—</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+            <span style="color: var(--text-muted); font-weight: 500;">Confidence:</span>
+            <span id="ai-confidence" style="font-weight: 600;">—</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+            <span style="color: var(--text-muted); font-weight: 500;">Severity Level:</span>
+            <span id="ai-severity" style="font-weight: 600;">—</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+            <span style="color: var(--text-muted); font-weight: 500;">Queue Routing:</span>
+            <span id="ai-routing" style="font-weight: 600; color: var(--warning);">—</span>
+          </div>
+        </div>
+
+        <div class="alert alert-danger" id="duplicate-warning" style="display: none; font-size: 0.85rem; margin-top: 1rem;">
+          <i class="fa-solid fa-clone"></i> Duplicate Alert! This issue matches an active report with ID <span id="duplicate-id" style="font-family: monospace; font-weight: 600;"></span> nearby.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- AI overlay drawing tools -->
+<script src="/static/frontend/js/ai_overlay.js"></script>
+<script>
+  let reportMap;
+  let activeMarker;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    // Initialize Map with Bangalore Default view
+    reportMap = L.map('map').setView([12.9716, 77.5946], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(reportMap);
+
+    // Map Click coordinates picker
+    reportMap.on("click", (e) => {
+      const lat = e.latlng.lat.toFixed(6);
+      const lng = e.latlng.lng.toFixed(6);
+      
+      document.getElementById("lat").value = lat;
+      document.getElementById("lng").value = lng;
+
+      if (activeMarker) {
+        activeMarker.setLatLng(e.latlng);
+      } else {
+        activeMarker = L.marker(e.latlng).addTo(reportMap);
+      }
+    });
+
+    // Image Upload Preview setup
+    const fileInput = document.getElementById("image");
+    fileInput.addEventListener("change", function() {
+      const file = this.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const img = document.getElementById("image-preview");
+          img.src = e.target.result;
+          document.getElementById("image-preview-wrapper").style.display = "block";
+          
+          // Reset AI panel display
+          document.getElementById("ai-metrics").style.display = "none";
+          document.getElementById("duplicate-warning").style.display = "none";
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Form Submit logic
+    document.getElementById("complaint-form").addEventListener("submit", function(e) {
+      e.preventDefault();
+      const alertContainer = document.getElementById("alert-container");
+      alertContainer.innerHTML = `<div class="alert alert-success" style="background: rgba(99,102,241,0.1); border-color: var(--primary); color: var(--text-main);"><i class="fa-solid fa-circle-notch fa-spin"></i> Submitting report & running AI analysis...</div>`;
+
+      const formData = new FormData();
+      formData.append("category", document.getElementById("category").value);
+      formData.append("subcategory", document.getElementById("subcategory").value);
+      formData.append("description", document.getElementById("description").value);
+      formData.append("lat", document.getElementById("lat").value);
+      formData.append("lng", document.getElementById("lng").value);
+      formData.append("address", document.getElementById("address").value);
+      formData.append("image", fileInput.files[0]);
+
+      const csrfToken = getCookie("csrf_access_token");
+
+      fetch("/api/complaints", {
+        method: "POST",
+        headers: {
+          "X-CSRF-Token": csrfToken
+        },
+        body: formData
+      })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to submit complaint");
+        }
+        return data;
+      })
+      .then(data => {
+        alertContainer.innerHTML = `<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Complaint submitted successfully! Redirecting...</div>`;
+        
+        // Render AI parameters on side copilot panel
+        document.getElementById("ai-metrics").style.display = "flex";
+        
+        // Call helper from ai_overlay.js if defined
+        if (typeof renderAIResult === "function") {
+          // Render AI parameters using public route data
+          renderAIResult(data.data);
+        }
+
+        setTimeout(() => {
+          window.location.href = "/citizen/dashboard";
+        }, 3000);
+      })
+      .catch(err => {
+        alertContainer.innerHTML = `<div class="alert alert-danger"><i class="fa-solid fa-circle-exclamation"></i> ${err.message}</div>`;
+      });
+    });
+  });
+</script>
+{% endblock %}

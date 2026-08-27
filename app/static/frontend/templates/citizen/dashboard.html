@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Citizen Dashboard - SmartCivic{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem; margin-top: 1rem;">
+  <!-- Left Side: Maps and Reports List -->
+  <div>
+    <!-- Interactive Map -->
+    <div class="card">
+      <h3 class="card-title"><i class="fa-solid fa-map-location-dot" style="color: var(--primary);"></i> Issues Map</h3>
+      <div id="map"></div>
+    </div>
+
+    <!-- Personal Reports List -->
+    <div class="card">
+      <h3 class="card-title"><i class="fa-solid fa-list-check" style="color: var(--primary);"></i> My Filed Reports</h3>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;" id="my-reports-table">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--border-color); color: var(--text-muted); font-size: 0.9rem;">
+              <th style="padding: 0.75rem 1rem;">Category</th>
+              <th style="padding: 0.75rem 1rem;">Description</th>
+              <th style="padding: 0.75rem 1rem;">Filed Date</th>
+              <th style="padding: 0.75rem 1rem;">Status</th>
+              <th style="padding: 0.75rem 1rem;">Priority</th>
+            </tr>
+          </thead>
+          <tbody id="my-reports-list">
+            <tr>
+              <td colspan="5" style="padding: 2rem; text-align: center; color: var(--text-muted);">
+                <i class="fa-solid fa-circle-notch fa-spin"></i> Loading filed reports...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Side: Profile Tier Scorecard & Verifier Queue -->
+  <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+    <!-- Profile Scorecard -->
+    <div class="card" style="background: linear-gradient(135deg, rgba(30,41,59,0.9) 0%, rgba(99,102,241,0.1) 100%);">
+      <h3 class="card-title"><i class="fa-solid fa-award" style="color: var(--primary);"></i> Civic Scorecard</h3>
+      <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; align-items: center; text-align: center;">
+        <div style="width: 100px; height: 100px; border-radius: 50%; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(99,102,241,0.4);">
+          <span style="font-size: 1.75rem; font-weight: 700;" id="user-score-display">0</span>
+        </div>
+        <div>
+          <h4 style="font-size: 1.2rem; font-weight: 600;" id="user-tier-display">Reporter</h4>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Contribution Level</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Community Verify Queue -->
+    <div class="card" id="verify-queue-card" style="display: none;">
+      <h3 class="card-title" style="font-size: 1.15rem;">
+        <i class="fa-solid fa-check-double" style="color: var(--success);"></i> Verifier Queue
+      </h3>
+      <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;" id="verifier-list">
+        <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem;">Checking verifier eligibility...</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let map;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    // 1. Initialise Map
+    map = L.map('map').setView([12.9716, 77.5946], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // 2. Fetch Personal Details & Score Card
+    fetch("/api/citizen/civicscore")
+      .then(res => res.json())
+      .then(res => {
+        if (res.success) {
+          const score = res.data.civic_score;
+          const tier = res.data.tier;
+          
+          document.getElementById("user-score-display").textContent = score;
+          document.getElementById("user-tier-display").textContent = tier;
+
+          // If verifier or guardian, show community verifier voting list
+          if (tier === "Verifier" || tier === "Ward Guardian") {
+            document.getElementById("verify-queue-card").style.display = "block";
+            loadVerifierQueue();
+          }
+        }
+      });
+
+    // 3. Fetch My Filed Reports & Render List + Map Pins
+    fetch("/api/citizen/complaints")
+      .then(res => res.json())
+      .then(res => {
+        if (res.success) {
+          const list = document.getElementById("my-reports-list");
+          const items = res.data;
+          
+          if (items.length === 0) {
+            list.innerHTML = `<tr><td colspan="5" style="padding: 2rem; text-align: center; color: var(--text-muted);">You have not filed any reports yet.</td></tr>`;
+            return;
+          }
+
+          let html = ``;
+          items.forEach(c => {
+            const dateStr = new Date(c.created_at).toLocaleDateString();
+            const statusClass = c.status.toLowerCase().replace(/_/g, '-');
+            html += `
+              <tr style="border-bottom: 1px solid var(--border-color); hover: background-color: rgba(255,255,255,0.02)">
+                <td style="padding: 0.75rem 1rem; font-weight: 600;">${c.category}</td>
+                <td style="padding: 0.75rem 1rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.description}</td>
+                <td style="padding: 0.75rem 1rem;">${dateStr}</td>
+                <td style="padding: 0.75rem 1rem;">
+                  <span class="badge" style="background: rgba(99,102,241,0.15); color: var(--primary);">${c.status}</span>
+                </td>
+                <td style="padding: 0.75rem 1rem; font-weight: 500;">${c.priority}</td>
+              </tr>
+            `;
+
+            // Pin to map
+            if (c.location && c.location.lat) {
+              const marker = L.marker([c.location.lat, c.location.lng]).addTo(map);
+              marker.bindPopup(`<b>${c.category}</b><br>${c.description.substring(0, 50)}...<br><b>Status:</b> ${c.status}`);
+            }
+          });
+          list.innerHTML = html;
+        }
+      });
+  });
+
+  function loadVerifierQueue() {
+    const list = document.getElementById("verifier-list");
+    fetch("/api/citizen/verify-queue")
+      .then(res => res.json())
+      .then(res => {
+        if (res.success) {
+          const items = res.data;
+          if (items.length === 0) {
+            list.innerHTML = `<p style="text-align: center; color: var(--text-muted); font-size: 0.85rem;">No issues currently awaiting community verification.</p>`;
+            return;
+          }
+
+          let html = ``;
+          items.forEach(c => {
+            html += `
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-weight: 600; font-size: 0.9rem;">${c.category}</span>
+                  <span style="font-size: 0.75rem; color: var(--text-muted);">${c.ward}</span>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">${c.description}</p>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                  <button class="btn btn-primary" onclick="vote('${c._id}', true)" style="flex: 1; padding: 0.4rem; font-size: 0.8rem; justify-content: center;"><i class="fa-solid fa-thumbs-up"></i> Agree</button>
+                  <button class="btn btn-outline" onclick="vote('${c._id}', false)" style="flex: 1; padding: 0.4rem; font-size: 0.8rem; justify-content: center; border-color: var(--danger); color: var(--danger);"><i class="fa-solid fa-thumbs-down"></i> Disagree</button>
+                </div>
+              </div>
+            `;
+          });
+          list.innerHTML = html;
+        }
+      });
+  }
+
+  function vote(complaintId, isUpvote) {
+    const csrfToken = getCookie("csrf_access_token");
+    fetch(`/api/complaints/${complaintId}/vote`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken
+      },
+      body: JSON.stringify({ vote: isUpvote })
+    })
+    .then(res => res.json())
+    .then(res => {
+      if (res.success) {
+        loadVerifierQueue();
+      } else {
+        alert("Error casting vote: " + res.error);
+      }
+    });
+  }
+</script>
+{% endblock %}

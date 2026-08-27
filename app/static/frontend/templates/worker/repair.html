@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Submit Repair - SmartCivic{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 400px; gap: 2rem; margin-top: 1rem;">
+  <!-- Left Column: Repair Submission Form -->
+  <div class="card">
+    <h2 class="card-title"><i class="fa-solid fa-wrench" style="color: var(--primary);"></i> Submit Repair Verification</h2>
+    
+    <div style="margin-top: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+      <h3 style="font-size: 1.1rem; font-weight: 600;">Complaint Details</h3>
+      <p style="font-size: 0.9rem; color: var(--text-muted);"><b style="color: var(--text-main);">Category:</b> {{ complaint.category }}</p>
+      <p style="font-size: 0.9rem; color: var(--text-muted);"><b style="color: var(--text-main);">Address:</b> {{ complaint.location.address }}</p>
+      <p style="font-size: 0.9rem; color: var(--text-muted);"><b style="color: var(--text-main);">Description:</b> {{ complaint.description }}</p>
+    </div>
+
+    <div id="alert-container" style="margin-top: 1.5rem;"></div>
+
+    <form id="repair-form" style="margin-top: 1.5rem;" enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="after_image">Upload After-Repair Photo (Max 10MB)</label>
+        <input type="file" id="after_image" accept="image/*" required>
+        <div style="display: none; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); width: 100%; max-width: 400px; margin-top: 1rem;" id="after-preview-wrapper">
+          <img src="" alt="After Preview" style="width: 100%; height: auto; display: block;" id="after-preview">
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.8rem; margin-top: 1.5rem;">
+        Submit for AI Verification
+      </button>
+    </form>
+  </div>
+
+  <!-- Right Column: Real-time AI Repair Verification Status -->
+  <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+    <div class="card" style="background: rgba(30,41,59,0.95);">
+      <h3 class="card-title"><i class="fa-solid fa-robot" style="color: var(--primary);"></i> AI Repair Inspection</h3>
+      
+      <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem;" id="ai-inspection-panel">
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Submit an after-repair photo. The AI will compare it with the original photo to assess confidence drops and automatically certify resolution.</p>
+        
+        <div id="inspection-results" style="display: none; flex-direction: column; gap: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+            <span style="color: var(--text-muted); font-weight: 500;">Original Defect:</span>
+            <span id="before-conf" style="font-weight: 600;">—</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+            <span style="color: var(--text-muted); font-weight: 500;">Residual Defect:</span>
+            <span id="after-conf" style="font-weight: 600;">—</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+            <span style="color: var(--text-muted); font-weight: 500;">Confidence Drop:</span>
+            <span id="conf-drop" style="font-weight: 600; color: var(--success);">—</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; align-items: center;">
+            <span style="color: var(--text-muted); font-weight: 500;">AI Decision:</span>
+            <span class="badge" id="ai-decision-badge">—</span>
+          </div>
+          
+          <div id="status-update-box" style="margin-top: 1rem; font-weight: 600; text-align: center; font-size: 0.95rem; color: var(--text-main);"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const fileInput = document.getElementById("after_image");
+    fileInput.addEventListener("change", function() {
+      const file = this.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById("after-preview").src = e.target.result;
+          document.getElementById("after-preview-wrapper").style.display = "block";
+          document.getElementById("inspection-results").style.display = "none";
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    document.getElementById("repair-form").addEventListener("submit", function(e) {
+      e.preventDefault();
+      const alertContainer = document.getElementById("alert-container");
+      alertContainer.innerHTML = `<div class="alert alert-success" style="background: rgba(99,102,241,0.1); border-color: var(--primary); color: var(--text-main);"><i class="fa-solid fa-circle-notch fa-spin"></i> Uploading after-photo & running AI repair check...</div>`;
+
+      // Since the API requires status to be REPAIR_SUBMITTED first, we do a two-step transition:
+      // Step 1: Transition to REPAIR_SUBMITTED
+      // Step 2: Upload photo and evaluate PASS/FAIL
+      const complaintId = "{{ complaint._id }}";
+      const csrfToken = getCookie("csrf_access_token");
+
+      fetch(`/api/complaints/${complaintId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken
+        },
+        body: JSON.stringify({ status: "REPAIR_SUBMITTED" })
+      })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to set status to REPAIR_SUBMITTED");
+        }
+        return data;
+      })
+      .then(() => {
+        // Step 2: POST the after-image
+        const formData = new FormData();
+        formData.append("image", fileInput.files[0]);
+
+        return fetch(`/api/complaints/${complaintId}/after-photo`, {
+          method: "POST",
+          headers: {
+            "X-CSRF-Token": csrfToken
+          },
+          body: formData
+        });
+      })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to upload after-photo");
+        }
+        return data;
+      })
+      .then(resData => {
+        const result = resData.data;
+        alertContainer.innerHTML = `<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Repair inspection completed!</div>`;
+        
+        // Show AI Inspection Results
+        document.getElementById("inspection-results").style.display = "flex";
+        document.getElementById("before-conf").textContent = `${(result.before_confidence * 100).toFixed(1)}%`;
+        document.getElementById("after-conf").textContent = `${(result.after_confidence * 100).toFixed(1)}%`;
+        document.getElementById("conf-drop").textContent = `${(result.confidence_drop * 100).toFixed(1)}%`;
+        
+        const badge = document.getElementById("ai-decision-badge");
+        badge.textContent = result.result;
+        
+        const statusBox = document.getElementById("status-update-box");
+
+        if (result.result === "PASS") {
+          badge.style.background = "rgba(16,185,129,0.2)";
+          badge.style.color = "var(--success)";
+          statusBox.innerHTML = `<i class="fa-solid fa-circle-check" style="color: var(--success)"></i> Verified! Complaint status: <span style="color: var(--success)">RESOLVED</span>`;
+        } else {
+          badge.style.background = "rgba(239,68,68,0.2)";
+          badge.style.color = "var(--danger)";
+          statusBox.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color: var(--danger)"></i> Defect still detected! Status reset to: <span style="color: var(--warning)">REOPENED</span>`;
+        }
+
+        setTimeout(() => {
+          window.location.href = "/worker/dashboard";
+        }, 4000);
+      })
+      .catch(err => {
+        alertContainer.innerHTML = `<div class="alert alert-danger"><i class="fa-solid fa-circle-exclamation"></i> ${err.message}</div>`;
+      });
+    });
+  });
+</script>
+{% endblock %}

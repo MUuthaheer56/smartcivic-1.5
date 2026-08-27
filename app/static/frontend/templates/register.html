@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Register - SmartCivic{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: center; align-items: center; min-height: 85vh; width: 100%; padding: 2rem 0;">
+  <div class="card" style="width: 100%; max-width: 500px; background: rgba(30, 41, 59, 0.85);">
+    <h2 class="card-title" style="justify-content: center; font-size: 1.75rem; margin-bottom: 1.5rem;">
+      <i class="fa-solid fa-user-plus" style="color: var(--primary);"></i> Create Account
+    </h2>
+    <div id="alert-container"></div>
+    <form id="register-form">
+      <div class="form-group">
+        <label for="name">Full Name</label>
+        <input type="text" id="name" required placeholder="John Doe">
+      </div>
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" required placeholder="john@domain.com">
+      </div>
+      <div class="form-group">
+        <label for="phone">Phone Number (10 digits)</label>
+        <input type="tel" id="phone" pattern="\d{10}" required placeholder="9876543210">
+      </div>
+      <div class="form-group">
+        <label for="password">Password (min 8 characters)</label>
+        <input type="password" id="password" minlength="8" required placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label for="ward">Ward</label>
+        <select id="ward" required>
+          <option value="Indiranagar">Indiranagar</option>
+          <option value="Domlur">Domlur</option>
+          <option value="Koramangala">Koramangala</option>
+          <option value="HSR Layout">HSR Layout</option>
+          <option value="Whitefield">Whitefield</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="role">Account Type</label>
+        <select id="role" required>
+          <option value="citizen">Citizen</option>
+          <option value="worker">Worker</option>
+        </select>
+      </div>
+      <div class="form-group" id="dept-group" style="display: none;">
+        <label for="department">Department</label>
+        <select id="department">
+          <option value="General">General</option>
+          <option value="Roads">Roads / Footpath</option>
+          <option value="Streetlight">Streetlight</option>
+          <option value="Waste Management">Waste Management / Drainage</option>
+          <option value="Lake Encroachment">Lake Encroachment</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.8rem; margin-top: 1rem;">
+        Register
+      </button>
+    </form>
+    <p style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-muted);">
+      Already have an account? <a href="/api/auth/login" style="color: var(--primary); text-decoration: none; font-weight: 500;">Log in here</a>
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Show department selection if worker role is selected
+  document.getElementById("role").addEventListener("change", function() {
+    const deptGroup = document.getElementById("dept-group");
+    if (this.value === "worker") {
+      deptGroup.style.display = "flex";
+    } else {
+      deptGroup.style.display = "none";
+    }
+  });
+
+  document.getElementById("register-form").addEventListener("submit", function(e) {
+    e.preventDefault();
+    const alertContainer = document.getElementById("alert-container");
+
+    const payload = {
+      name: document.getElementById("name").value,
+      email: document.getElementById("email").value,
+      phone: document.getElementById("phone").value,
+      password: document.getElementById("password").value,
+      ward: document.getElementById("ward").value,
+      role: document.getElementById("role").value
+    };
+
+    if (payload.role === "worker") {
+      payload.department = document.getElementById("department").value;
+    }
+
+    fetch("/api/auth/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Registration failed");
+      }
+      return data;
+    })
+    .then(data => {
+      alertContainer.innerHTML = `<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Registration successful! Redirecting to login...</div>`;
+      setTimeout(() => {
+        window.location.href = "/api/auth/login";
+      }, 1500);
+    })
+    .catch(err => {
+      alertContainer.innerHTML = `<div class="alert alert-danger"><i class="fa-solid fa-circle-exclamation"></i> ${err.message}</div>`;
+    });
+  });
+</script>
+{% endblock %}

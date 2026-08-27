@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SmartCivic{% endblock %}</title>
+    
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet.js CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Socket.IO CDN -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
+    <!-- Custom styling & Theme config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        /* Leaflet Dark Theme Overrides */
+        .leaflet-container {
+            background: #1e293b !important;
+        }
+        .leaflet-tile {
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) !important;
+        }
+        .leaflet-bar a {
+            background-color: #1e293b !important;
+            color: #f8fafc !important;
+            border-bottom: 1px solid #334155 !important;
+        }
+        .leaflet-bar a:hover {
+            background-color: #334155 !important;
+        }
+        .leaflet-popup-content-wrapper {
+            background: #1e293b !important;
+            color: #f8fafc !important;
+            border: 1px solid #334155;
+        }
+        .leaflet-popup-tip {
+            background: #1e293b !important;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Global Navigation Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="flex items-center space-x-3">
+                        <div class="h-9 w-9 bg-brand-600 rounded-lg flex items-center justify-center font-extrabold text-white text-xl tracking-wider shadow-lg shadow-brand-500/20">
+                            S
+                        </div>
+                        <span class="text-xl font-bold tracking-tight text-white">Smart<span class="text-brand-500">Civic</span></span>
+                    </a>
+                </div>
+                
+                <nav class="hidden md:flex space-x-1">
+                    {% block nav_links %}{% endblock %}
+                </nav>
+                
+                <div class="flex items-center space-x-4">
+                    {% block nav_auth %}
+                    <span id="nav-user-info" class="text-sm font-medium text-slate-400 hidden"></span>
+                    <a href="/logout" id="nav-logout-btn" class="text-sm font-medium text-slate-400 hover:text-white transition hidden px-3 py-1.5 rounded-lg hover:bg-slate-800 border border-transparent hover:border-slate-700">Logout</a>
+                    {% endblock %}
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-850 bg-slate-950 py-6 text-center text-xs text-slate-500">
+        <p>&copy; 2026 SmartCivic Platform. Built for cleaner, safer, and better wards.</p>
+    </footer>
+
+    <!-- Socket.IO & Global Scripts -->
+    <script>
+        // Extract cookies helper (essential for JWT CSRF headers)
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        // Setup global fetch wrapper to automatically include the CSRF token
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options = {}) {
+            const csrfToken = getCookie("csrf_access_token");
+            if (csrfToken) {
+                options.headers = options.headers || {};
+                if (options.headers instanceof Headers) {
+                    options.headers.set("X-CSRF-Token", csrfToken);
+                } else {
+                    options.headers["X-CSRF-Token"] = csrfToken;
+                }
+            }
+            return originalFetch(url, options);
+        };
+
+        // Initialize SocketIO globally
+        const socket = io();
+
+        // Load logged in user details if authenticated
+        document.addEventListener("DOMContentLoaded", () => {
+            fetch("/api/auth/me")
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success && res.data.user) {
+                        const user = res.data.user;
+                        const role = res.data.role;
+                        
+                        const userInfoEl = document.getElementById("nav-user-info");
+                        const logoutBtn = document.getElementById("nav-logout-btn");
+                        
+                        if (userInfoEl) {
+                            userInfoEl.innerText = `${user.name} (${role.toUpperCase()})`;
+                            userInfoEl.classList.remove("hidden");
+                        }
+                        if (logoutBtn) {
+                            logoutBtn.classList.remove("hidden");
+                        }
+                        
+                        // Let child templates know user details
+                        if (window.onUserLoaded) {
+                            window.onUserLoaded(user, role);
+                        }
+                    }
+                })
+                .catch(err => console.log("Guest session"));
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>
