@@ -23,7 +23,7 @@ class Config:
     
     # JWT Config
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "jwt-secret-key-smartcivic")
-    JWT_TOKEN_LOCATION = ["cookies"]
+    JWT_TOKEN_LOCATION = ["headers", "cookies"]
     JWT_COOKIE_SECURE = False  # Disabled for local HTTP development. Set to True in production.
     JWT_COOKIE_SAMESITE = "Strict"
     

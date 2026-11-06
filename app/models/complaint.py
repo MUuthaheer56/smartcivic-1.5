@@ -55,6 +55,8 @@ class Complaint:
             serialized["citizen_id"] = str(serialized["citizen_id"])
         if serialized.get("assigned_worker_id"):
             serialized["assigned_worker_id"] = str(serialized["assigned_worker_id"])
+        if serialized.get("duplicate_of"):
+            serialized["duplicate_of"] = str(serialized["duplicate_of"])
             
         # Serialize datetimes
         for field in ["sla_deadline", "first_response_at", "resolved_at", "created_at", "updated_at"]:
@@ -67,9 +69,18 @@ class Complaint:
             vote_dict = dict(v)
             if "user_id" in vote_dict:
                 vote_dict["user_id"] = str(vote_dict["user_id"])
+            if "voter_id" in vote_dict:
+                vote_dict["voter_id"] = str(vote_dict["voter_id"])
             if isinstance(vote_dict.get("voted_at"), datetime.datetime):
                 vote_dict["voted_at"] = vote_dict["voted_at"].isoformat()
             votes.append(vote_dict)
         serialized["verification_votes"] = votes
+        
+        # Serialize timeline events
+        events = []
+        from app.models.event import ComplaintEvent
+        for e in serialized.get("timeline_events", []):
+            events.append(ComplaintEvent.serialize(e))
+        serialized["timeline_events"] = events
         
         return serialized

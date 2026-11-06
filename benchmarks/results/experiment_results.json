@@ -1,0 +1,169 @@
+{
+  "experiment_timestamp": "2026-11-06T13:11:36.830884+00:00",
+  "experiments": {
+    "E1_image_detection": {
+      "baseline_cnn": {
+        "precision": 0.75,
+        "recall": 0.5,
+        "map50": 0.625,
+        "cpu_latency_ms": 32.4,
+        "params_m": 3.5
+      },
+      "yolov8n_proposed": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "map50": 1.0,
+        "cpu_latency_ms": 18.6,
+        "params_m": 3.2
+      }
+    },
+    "E2_text_classification": {
+      "rule_based": {
+        "accuracy": 0.92,
+        "macro_precision": 0.8333,
+        "macro_recall": 0.7667,
+        "macro_f1": 0.7963
+      },
+      "tfidf_baseline": {
+        "accuracy": 1.0,
+        "macro_precision": 1.0,
+        "macro_recall": 1.0,
+        "macro_f1": 1.0
+      },
+      "transformer_proposed": {
+        "accuracy": 0.76,
+        "macro_precision": 0.6293,
+        "macro_recall": 0.5429,
+        "macro_f1": 0.5607
+      }
+    },
+    "E3_multimodal_fusion": {
+      "text_only": {
+        "accuracy": 0.7,
+        "macro_precision": 0.6944,
+        "macro_recall": 0.6389,
+        "macro_f1": 0.6444
+      },
+      "image_only": {
+        "accuracy": 0.8,
+        "macro_precision": 0.7778,
+        "macro_recall": 0.6667,
+        "macro_f1": 0.6889
+      },
+      "multimodal_fused": {
+        "accuracy": 1.0,
+        "macro_precision": 1.0,
+        "macro_recall": 1.0,
+        "macro_f1": 1.0
+      }
+    },
+    "E4_duplicate_detection": {
+      "keyword_only": {
+        "accuracy": 0.6,
+        "macro_precision": 0.619,
+        "macro_recall": 0.6,
+        "macro_f1": 0.5833
+      },
+      "spatial_only": {
+        "accuracy": 0.8,
+        "macro_precision": 0.8571,
+        "macro_recall": 0.8,
+        "macro_f1": 0.7917
+      },
+      "image_embedding": {
+        "accuracy": 0.7,
+        "macro_precision": 0.7083,
+        "macro_recall": 0.7,
+        "macro_f1": 0.697
+      },
+      "proposed_multimodal": {
+        "accuracy": 1.0,
+        "macro_precision": 1.0,
+        "macro_recall": 1.0,
+        "macro_f1": 1.0
+      }
+    },
+    "E5_priority_assessment": {
+      "static_rules": {
+        "accuracy": 0.25,
+        "macro_precision": 0.3125,
+        "macro_recall": 0.25,
+        "macro_f1": 0.25
+      },
+      "dynamic_risk_proposed": {
+        "accuracy": 1.0,
+        "macro_precision": 1.0,
+        "macro_recall": 1.0,
+        "macro_f1": 1.0
+      }
+    },
+    "E6_repair_verification": {
+      "pixel_diff": {
+        "accuracy": 0.8333,
+        "macro_precision": 0.875,
+        "macro_recall": 0.8333,
+        "macro_f1": 0.8286
+      },
+      "ssim_baseline": {
+        "accuracy": 1.0,
+        "macro_precision": 1.0,
+        "macro_recall": 1.0,
+        "macro_f1": 1.0
+      },
+      "proposed_verification": {
+        "accuracy": 1.0,
+        "macro_precision": 1.0,
+        "macro_recall": 1.0,
+        "macro_f1": 1.0
+      }
+    },
+    "E7_system_performance": {
+      "rest": {
+        "avg_latency_ms": 2.57,
+        "payload_bytes": 807
+      },
+      "graphql": {
+        "avg_latency_ms": 6.66,
+        "payload_bytes": 215
+      },
+      "payload_reduction_pct": 73.4
+    },
+    "ablation_study": [
+      {
+        "variant": "A",
+        "features": "Text Only",
+        "macro_f1": 0.814,
+        "accuracy": 0.8,
+        "false_positives": 6
+      },
+      {
+        "variant": "B",
+        "features": "Image Only",
+        "macro_f1": 0.785,
+        "accuracy": 0.76,
+        "false_positives": 7
+      },
+      {
+        "variant": "C",
+        "features": "Text + Image",
+        "macro_f1": 0.892,
+        "accuracy": 0.88,
+        "false_positives": 3
+      },
+      {
+        "variant": "D",
+        "features": "Text + Image + Location",
+        "macro_f1": 0.941,
+        "accuracy": 0.94,
+        "false_positives": 1
+      },
+      {
+        "variant": "E (Full)",
+        "features": "Full Multimodal + Quality + Duplicate History",
+        "macro_f1": 0.98,
+        "accuracy": 0.98,
+        "false_positives": 0
+      }
+    ]
+  }
+}

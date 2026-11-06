@@ -29,7 +29,6 @@ def worker_dashboard():
     if active_complaint_id:
         active_complaint = db_wrapper.db.complaints.find_one({"_id": ObjectId(active_complaint_id)})
         if active_complaint:
-            # Serialize
             from app.models.complaint import Complaint
             active_complaint = Complaint.serialize(active_complaint)
             
@@ -48,7 +47,6 @@ def worker_repair(id):
     if not complaint:
         return redirect("/worker/dashboard")
         
-    # IDOR check: Verify the worker is indeed assigned
     if str(complaint.get("assigned_worker_id")) != str(worker_id):
         return redirect("/worker/dashboard")
         
@@ -72,10 +70,52 @@ def list_workers_api():
     workers = get_workers(filters)
     return api_response(True, data=workers)
 
+@workers_bp.route("/api/workers/nearest", methods=["GET"])
+@admin_required
+def get_nearest_workers_api():
+    lat = request.args.get("lat", type=float)
+    lng = request.args.get("lng", type=float)
+    category = request.args.get("category", "")
+    
+    if lat is None or lng is None:
+        return api_response(False, error="lat and lng parameters are required", status_code=400)
+        
+    from app.core.complaints.service import get_nearest_available_worker
+    data = get_nearest_available_worker(lat, lng, category, db_wrapper.db)
+    return api_response(True, data=data)
+
+@workers_bp.route("/api/workers/batch-assign", methods=["POST"])
+@admin_required
+def batch_assign_api():
+    data = request.get_json() or {}
+    worker_id = data.get("worker_id")
+    complaint_ids = data.get("complaint_ids", [])
+    
+    if not worker_id or not complaint_ids:
+        return api_response(False, error="worker_id and list of complaint_ids required", status_code=400)
+        
+    # Check max capacity of worker (max 3 active tasks)
+    worker = db_wrapper.db.workers.find_one({"_id": ObjectId(worker_id)})
+    if not worker:
+        return api_response(False, error="Worker not found", status_code=404)
+        
+    active_count = worker.get("active_tasks_count", 0)
+    if active_count + len(complaint_ids) > 3:
+        return api_response(False, error="Worker capacity reached maximum limits (3 active tasks max)", status_code=400)
+
+    assigned_count = 0
+    from app.core.complaints.service import assign_complaint_worker
+    for cid in complaint_ids:
+        # Atomic check-and-assign
+        res, err = assign_complaint_worker(cid, worker_id)
+        if not err:
+            assigned_count += 1
+            
+    return api_response(True, data={"assigned_count": assigned_count})
+
 @workers_bp.route("/api/workers/<id>", methods=["GET"])
 @jwt_required()
 def get_worker_api(id):
-    # Admin can view anyone; worker can only view themselves
     identity = get_jwt_identity()
     claims = get_jwt()
     role = claims.get("role")
@@ -116,7 +156,6 @@ def get_route_api(id):
     claims = get_jwt()
     role = claims.get("role")
     
-    # IDOR Check: worker must query their own route, admins are allowed
     if role != "admin" and str(identity) != str(id):
         return api_response(False, error="Forbidden: IDOR check failed", status_code=403)
         
@@ -125,6 +164,39 @@ def get_route_api(id):
         return api_response(False, error=err, status_code=400)
         
     return api_response(True, data=route_info)
+
+@workers_bp.route("/api/workers/<id>/schedule", methods=["GET"])
+@jwt_required()
+def get_worker_schedule_api(id):
+    identity = get_jwt_identity()
+    claims = get_jwt()
+    role = claims.get("role")
+    
+    if role != "admin" and str(identity) != str(id):
+        return api_response(False, error="Forbidden: IDOR check failed", status_code=403)
+        
+    worker = db_wrapper.db.workers.find_one({"_id": ObjectId(id)})
+    if not worker:
+        return api_response(False, error="Worker not found", status_code=404)
+        
+    # Find all active complaints assigned to this worker
+    from app.models.complaint import Complaint
+    tasks = list(db_wrapper.db.complaints.find({
+        "assigned_worker_id": ObjectId(id),
+        "status": {"$in": ["ASSIGNED", "IN_PROGRESS", "REOPENED"]}
+    }))
+    
+    # Optimize sequence starting from current worker location
+    curr_loc = worker.get("current_location") or {}
+    start_lat = curr_loc.get("lat")
+    start_lng = curr_loc.get("lng")
+    if start_lat is None or start_lng is None:
+        return api_response(False, error="Worker current_location (lat, lng) is not available to compute route", status_code=400)
+    
+    from app.routing.optimizer import optimize_worker_sequence
+    ordered = optimize_worker_sequence(float(start_lat), float(start_lng), tasks)
+    
+    return api_response(True, data=[Complaint.serialize(t) for t in ordered])
 
 @workers_bp.route("/api/workers/<id>/performance", methods=["GET"])
 @jwt_required()
@@ -147,9 +219,6 @@ def get_performance_api(id):
 
 @socketio.on("worker_location_update")
 def handle_worker_location_update(data):
-    """
-    Called by workers to submit GPS coordinates every 30s.
-    """
     if not isinstance(data, dict):
         return
     worker_id = data.get("worker_id")
@@ -160,9 +229,6 @@ def handle_worker_location_update(data):
 
 @socketio.on("join_complaint_room")
 def handle_join_complaint_room(data):
-    """
-    Called by users (citizen/worker) to monitor updates on a specific complaint.
-    """
     if not isinstance(data, dict):
         return
     complaint_id = data.get("complaint_id")
@@ -172,7 +238,4 @@ def handle_join_complaint_room(data):
 
 @socketio.on("join_admin_room")
 def handle_join_admin_room(data=None):
-    """
-    Called by admins to register for dashboard broadcasts.
-    """
     join_room("admin")

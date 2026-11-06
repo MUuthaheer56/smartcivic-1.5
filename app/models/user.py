@@ -28,6 +28,14 @@ class User:
             "tier": "Reporter",
             "is_anonymous_allowed": False,
             "contribution_history": [],
+            
+            # 1.6 OTP & Security Verification fields
+            "is_verified": False,
+            "otp_code": None,
+            "otp_expires_at": None,
+            "failed_logins": 0,
+            "lockout_until": None,
+            
             "created_at": now,
             "last_active": now
         }
@@ -38,12 +46,13 @@ class User:
             return None
         doc = dict(user_doc)
         doc["_id"] = str(doc["_id"])
-        # Do not leak password hash
+        # Do not leak password hash or OTP secrets
         if "password_hash" in doc:
             del doc["password_hash"]
+        if "otp_code" in doc:
+            del doc["otp_code"]
         # Serialize datetimes
-        if isinstance(doc.get("created_at"), datetime.datetime):
-            doc["created_at"] = doc["created_at"].isoformat()
-        if isinstance(doc.get("last_active"), datetime.datetime):
-            doc["last_active"] = doc["last_active"].isoformat()
+        for field in ["created_at", "last_active", "otp_expires_at", "lockout_until"]:
+            if isinstance(doc.get(field), datetime.datetime):
+                doc[field] = doc[field].isoformat()
         return doc

@@ -301,18 +301,18 @@ class SmartCivicLayers345TestCase(unittest.TestCase):
         })
         
         # Test Heatmap API
-        res = self.client.get("/analytics/heatmap")
+        res = self.client.get("/api/admin/analytics/heatmap")
         self.assertEqual(res.status_code, 200)
         self.assertGreaterEqual(len(res.json["data"]), 1)
         
         # Test worker performance calculation API
-        res = self.client.get(f"/analytics/worker-performance/{worker_id}")
+        res = self.client.get(f"/api/admin/analytics/worker-performance/{worker_id}")
         self.assertEqual(res.status_code, 200)
         self.assertIsNotNone(res.json["data"].get("performance_score"))
         
         # Test the rest of L5 endpoints
         for endpoint in ["drain-risk", "coordination-failures", "ward-trust", "animal-hotspots"]:
-            res = self.client.get(f"/analytics/{endpoint}")
+            res = self.client.get(f"/api/admin/analytics/{endpoint}")
             self.assertEqual(res.status_code, 200)
             
         print("\n=== ALL L3/4/5 TEST GATES PASSED SUCCESSFULLY ===")

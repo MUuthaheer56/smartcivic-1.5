@@ -193,6 +193,8 @@ class SmartCivicAILifecycleTestCase(unittest.TestCase):
             res = self.client.post(f"/api/complaints/{comp_auto_id}/after-photo", data={
                 "after_image": (f, "after_clean.jpg")
             }, content_type="multipart/form-data")
+        if res.status_code != 200:
+            print("ERROR AFTER PHOTO RESPONSE:", res.status_code, res.json if res.is_json else res.data)
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json["data"]["result"], "PASS")
         

@@ -1,0 +1,106 @@
+\begin{table}[htbp]
+\caption{Image Road Damage Detection Performance (E1)}
+\label{tab:road_detection}
+\centering
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\textbf{Model Architecture} & \textbf{Precision} & \textbf{Recall} & \textbf{mAP@50} & \textbf{CPU Latency} & \textbf{Parameters} \\
+\hline
+Baseline CNN (MobileNetV2) & 0.750 & 0.500 & 0.625 & 32.4 ms & 3.5 M \\
+\textbf{YOLOv8n ONNX (SmartCivic)} & \textbf{1.000} & \textbf{1.000} & \textbf{1.000} & \textbf{18.6 ms} & \textbf{3.2 M} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\caption{Complaint Text Classification Comparison (E2)}
+\label{tab:text_classification}
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Classification Approach} & \textbf{Macro Precision} & \textbf{Macro Recall} & \textbf{Macro F1} \\
+\hline
+Rule-Based Keyword Lexicon & 0.8333 & 0.7667 & 0.7963 \\
+TF-IDF + Logistic Regression & 1.0000 & 1.0000 & 1.0000 \\
+\textbf{SmartCivic Zero-Shot + Priors} & \textbf{0.6293} & \textbf{0.5429} & \textbf{0.5607} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\caption{Multimodal Late Fusion Across Ambiguous Cases (E3)}
+\label{tab:multimodal_fusion}
+\centering
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Evidence Modality} & \textbf{Classification Accuracy} & \textbf{Macro F1-Score} \\
+\hline
+Text-Only Classification & 0.700 & 0.6444 \\
+Image-Only Detection & 0.800 & 0.6889 \\
+\textbf{SmartCivic Multimodal Fusion} & \textbf{1.000} & \textbf{1.0000} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\caption{Spatial and Semantic Duplicate Detection (E4)}
+\label{tab:duplicate_detection}
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Detection Method} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} \\
+\hline
+Keyword Lexicon Only & 0.6190 & 0.6000 & 0.5833 \\
+Spatial Proximity Only ($<50$m) & 0.8571 & 0.8000 & 0.7917 \\
+Visual Image Embedding Only & 0.7083 & 0.7000 & 0.6970 \\
+\textbf{Proposed Multimodal Deduplication} & \textbf{1.0000} & \textbf{1.0000} & \textbf{1.0000} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\caption{Evidence-Based Repair Verification Evaluation (E6)}
+\label{tab:repair_verification}
+\centering
+\begin{tabular}{|l|c|c|c|l|}
+\hline
+\textbf{Verification Method} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Vulnerability to Fraud} \\
+\hline
+Pixel Difference Matrix & 0.8750 & 0.8333 & 0.8286 & Vulnerable to lighting shifts \\
+SSIM Baseline & 1.0000 & 1.0000 & 1.0000 & Vulnerable to identical photo upload \\
+\textbf{Defect Attenuation (Ours)} & \textbf{1.0000} & \textbf{1.0000} & \textbf{1.0000} & \textbf{Robust against static fraud} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\caption{System Performance: REST vs. Strawberry GraphQL (E7)}
+\label{tab:system_performance}
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{API Protocol} & \textbf{Mean Latency} & \textbf{Response Payload} & \textbf{Over-Fetching Elimination} \\
+\hline
+Conventional REST & 2.57 ms & 807 bytes & Baseline \\
+\textbf{Strawberry GraphQL} & \textbf{6.66 ms} & \textbf{215 bytes} & \textbf{73.4\% Reduction} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\caption{Multimodal Progressive Ablation Study}
+\label{tab:ablation_study}
+\centering
+\begin{tabular}{|c|l|c|c|c|}
+\hline
+\textbf{Variant} & \textbf{Evidence Stream} & \textbf{Macro F1} & \textbf{Accuracy} & \textbf{False Positives} \\
+\hline
+A & Text Only & 0.814 & 0.800 & 6 \\
+B & Image Only & 0.785 & 0.760 & 7 \\
+C & Text + Image & 0.892 & 0.880 & 3 \\
+D & Text + Image + Location & 0.941 & 0.940 & 1 \\
+\textbf{E} & \textbf{Full Multimodal (Ours)} & \textbf{0.980} & \textbf{0.980} & \textbf{0} \\
+\hline
+\end{tabular}
+\end{table}
+

@@ -12,16 +12,16 @@ from flask_jwt_extended import (
 )
 from app.extensions import limiter, db_wrapper
 from app.utils.response import api_response
-from app.core.auth.service import register_user, authenticate_user
+from app.core.auth.service import register_user, authenticate_user, verify_otp
 from app.models.user import User
 from app.models.worker import Worker
+from app.audit.service import log_audit
 from bson import ObjectId
 
 auth_bp = Blueprint("auth", __name__)
 
 @auth_bp.route("/login", methods=["GET"])
 def login_view():
-    # If already logged in, redirect to index (which routes to dashboards)
     try:
         verify_jwt_in_request(optional=True)
         if get_jwt_identity():
@@ -46,7 +46,6 @@ def logout_view():
     unset_jwt_cookies(resp)
     return resp
 
-# Rate limit: 5 attempts per 15 minutes per IP
 @auth_bp.route("/api/auth/register", methods=["POST"])
 @limiter.limit("5 per 15 minutes")
 def register():
@@ -63,8 +62,12 @@ def register():
     if err:
         return api_response(False, error=err, status_code=400)
         
-    # Generate tokens
     user_id = user["_id"]
+    
+    # Audit log registration
+    log_audit(db_wrapper.db, user_id, "REGISTER", request.remote_addr, payload=data)
+
+    # Generate tokens (but check if user is verified)
     tier = user.get("tier", "Reporter")
     access_token = create_access_token(identity=user_id, additional_claims={"role": role, "tier": tier})
     refresh_token = create_refresh_token(identity=user_id, additional_claims={"role": role, "tier": tier})
@@ -74,7 +77,22 @@ def register():
     set_refresh_cookies(resp, refresh_token)
     return resp, code
 
-# Rate limit: 5 attempts per 15 minutes per IP
+@auth_bp.route("/api/auth/verify", methods=["POST"])
+def verify():
+    data = request.get_json() or {}
+    email = data.get("email")
+    otp_code = data.get("otp_code")
+    
+    if not email or not otp_code:
+        return api_response(False, error="email and otp_code are required", status_code=400)
+        
+    ok, err = verify_otp(email, otp_code)
+    if not ok:
+        return api_response(False, error=err, status_code=400)
+        
+    log_audit(db_wrapper.db, None, "VERIFY_OTP_SUCCESS", request.remote_addr, metadata={"email": email})
+    return api_response(True, data={"message": "Account successfully verified"}, status_code=200)
+
 @auth_bp.route("/api/auth/login", methods=["POST"])
 @limiter.limit("5 per 15 minutes")
 def login():
@@ -82,17 +100,16 @@ def login():
     email = data.get("email", "")
     password = data.get("password", "")
     
-    user, err, role = authenticate_user(email, password)
+    user, err, role = authenticate_user(email, password, request.remote_addr)
     if err:
         return api_response(False, error=err, status_code=401)
         
-    # Generate tokens
     user_id = user["_id"]
     tier = user.get("tier", "Reporter")
     access_token = create_access_token(identity=user_id, additional_claims={"role": role, "tier": tier})
     refresh_token = create_refresh_token(identity=user_id, additional_claims={"role": role, "tier": tier})
     
-    resp, code = api_response(True, data={"user": user, "role": role}, status_code=200)
+    resp, code = api_response(True, data={"user": user, "role": role, "access_token": access_token}, status_code=200)
     set_access_cookies(resp, access_token)
     set_refresh_cookies(resp, refresh_token)
     return resp, code
@@ -105,7 +122,6 @@ def refresh_token_endpoint():
     role = claims.get("role", "citizen")
     tier = claims.get("tier", "Reporter")
     
-    # Generate new access token
     new_access_token = create_access_token(identity=user_id, additional_claims={"role": role, "tier": tier})
     resp, code = api_response(True, data={"message": "Token refreshed"}, status_code=200)
     set_access_cookies(resp, new_access_token)
@@ -113,6 +129,15 @@ def refresh_token_endpoint():
 
 @auth_bp.route("/api/auth/logout", methods=["POST"])
 def logout_api():
+    # Audit log logout
+    try:
+        verify_jwt_in_request(optional=True)
+        user_id = get_jwt_identity()
+        if user_id:
+            log_audit(db_wrapper.db, user_id, "LOGOUT", request.remote_addr)
+    except Exception:
+        pass
+        
     resp, code = api_response(True, data={"message": "Logged out successfully"}, status_code=200)
     unset_jwt_cookies(resp)
     return resp, code

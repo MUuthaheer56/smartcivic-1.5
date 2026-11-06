@@ -16,6 +16,8 @@ class Worker:
             "current_location": None,
             "status": "AVAILABLE",
             "active_complaint_id": None,
+            "active_tasks_count": 0,
+            "active_complaint_ids": [],
             "performance": {
                 "assigned": 0,
                 "completed": 0,
@@ -40,6 +42,11 @@ class Worker:
             
         if serialized.get("active_complaint_id"):
             serialized["active_complaint_id"] = str(serialized["active_complaint_id"])
+            
+        ids = []
+        for i in serialized.get("active_complaint_ids", []):
+            ids.append(str(i))
+        serialized["active_complaint_ids"] = ids
             
         if isinstance(serialized.get("created_at"), datetime.datetime):
             serialized["created_at"] = serialized["created_at"].isoformat()

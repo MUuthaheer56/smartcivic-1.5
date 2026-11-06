@@ -37,6 +37,13 @@ def create_app(config_class="config.Config"):
     app.register_blueprint(admin_bp)
     app.register_blueprint(maps_bp)
     
+    # Register Strawberry GraphQL endpoint
+    from app.graphql import schema, SmartCivicGraphQLView
+    app.add_url_rule(
+        "/graphql",
+        view_func=SmartCivicGraphQLView.as_view("graphql_view", schema=schema)
+    )
+    
     # Default redirect route
     @app.route("/")
     def index():
